@@ -1,0 +1,5 @@
+#!/usr/bin/env ruby
+
+require 'seznam_slovnik'
+
+Hanami::CLI.new(SeznamSlovnik::CLI::Commands).call
