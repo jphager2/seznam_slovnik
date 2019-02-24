@@ -11,6 +11,7 @@ module SeznamSlovnik
 
       class Translate < Hanami::CLI::Command
         URL = "https://slovnik.seznam.cz/%s-%s/?q=%s&forceLang=%d".freeze
+        ABBREVIATION = /\b(sb|sth)\b/
 
         argument :query, required: true, desc: "Word to lookup"
         option :source, aliases: %w[s], default: "cz", values: %w[cz en], desc: "Source language"
@@ -28,7 +29,7 @@ module SeznamSlovnik
 
           url = URL % [source, target, query, force_lang]
           html = begin
-                  open(url).read
+                   open(url).read
                  rescue => e
                    puts "Failed to get html: #{e.message}"
 
@@ -38,7 +39,8 @@ module SeznamSlovnik
           doc = Nokogiri::HTML(html)
 
           title = doc.css('#results h1').text
-          quick_definitions = doc.css('#results #fastMeanings table tr')
+          quick_definitions = doc
+            .css('#results #fastMeanings table tr td:last-child')
             .map(&method(:clean_quick_meaning))
             .reject(&:empty?)
 
@@ -50,16 +52,24 @@ module SeznamSlovnik
           puts "Quick Definitions"
           puts "=" * 17
           puts
-          puts quick_definitions.join("\n" + "-" * columns.to_i + "\n")
+          quick_definitions.each do |definition|
+            puts "  * #{definition}"
+          end
+          puts
+          puts "-" * columns.to_i
         end
 
         private def clean_quick_meaning(meaning)
           meaning
-            .text
+            .children
+            .map { |node| node.name == 'br' ? ', ' : node.text }
+            .join
             .strip
             .gsub(/\s+/, " ")
             .gsub(/\s,/, ",")
-            .colorize(color: :light_blue, mode: :bold)
+            .split(ABBREVIATION)
+            .map { |part| part.match?(ABBREVIATION) ? part.colorize(mode: :italic) : part.colorize(color: :light_blue, mode: :bold) }
+            .join
         end
       end
 
