@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    seznam_slovnik (0.1.0)
+    seznam_slovnik (0.2.0)
       colorize
       hanami-cli
       nokogiri

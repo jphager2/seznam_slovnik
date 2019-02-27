@@ -14,11 +14,12 @@ module SeznamSlovnik
         ABBREVIATION = /\b(sb|sth)\b/
 
         argument :query, required: true, desc: "Word to lookup"
+        option :color, type: :boolean, default: true, desc: "Colorize output"
         option :source, aliases: %w[s], default: "cz", values: %w[cz en], desc: "Source language"
         option :target, aliases: %w[t], default: "en", values: %w[cz en], desc: "Target language"
 
         def call(**options)
-          source, target = options.values_at(:source, :target)
+          source, target, color = options.values_at(:source, :target, :color)
           force_lang = source == "cz" ? 1 : 0
           query = URI.encode_www_form_component(options.fetch(:query))
 
@@ -44,19 +45,23 @@ module SeznamSlovnik
             .map(&method(:clean_quick_meaning))
             .reject(&:empty?)
 
-          _lines, columns = IO.console.winsize
-          puts
-          puts "Results for: #{title.colorize(color: :light_blue, mode: :bold)}"
-          puts "=" * (title.length + 13)
-          puts
-          puts "Quick Definitions"
-          puts "=" * 17
-          puts
+          _, columns = IO.console.winsize
+          out = <<~OUT
+
+            Results for: #{title.colorize(color: :light_blue, mode: :bold)}
+            #{"=" * (title.length + 13)}
+
+            Quick Definitions
+            #{"=" * 17}
+          OUT
+
           quick_definitions.each do |definition|
-            puts "  * #{definition}"
+            out << "  * #{definition}\n"
           end
-          puts
-          puts "-" * columns.to_i
+          out << "\n"
+          out << "-" * columns.to_i
+
+          puts(color ? out : out.uncolorize)
         end
 
         private def clean_quick_meaning(meaning)
