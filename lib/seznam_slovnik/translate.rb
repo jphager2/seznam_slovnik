@@ -39,11 +39,10 @@ module SeznamSlovnik
 
           doc = Nokogiri::HTML(html)
 
-          title = doc.css('#results h1').text
-          quick_definitions = doc
-            .css('#results #fastMeanings table tr td:last-child')
-            .map(&method(:clean_quick_meaning))
-            .reject(&:empty?)
+          title = doc.css('h1').text
+          parts = doc
+            .css('.TranslatePage-results .Box--partOfSpeech')
+            .map(&method(:build_part_of_speech))
 
           _, columns = IO.console.winsize
           out = <<~OUT
@@ -51,12 +50,26 @@ module SeznamSlovnik
             Results for: #{title.colorize(color: :light_blue, mode: :bold)}
             #{"=" * (title.length + 13)}
 
-            Quick Definitions
-            #{"=" * 17}
+            Definitions
+            ===========
+
           OUT
 
-          quick_definitions.each do |definition|
-            out << "  * #{definition}\n"
+          parts.each do |part|
+            out << part[:name]
+            out << "\n"
+            out << "-" * part[:name].length
+            out << "\n"
+            part[:definitions].each_with_index do |definition, i|
+              out << " #{i + 1})"
+              needs_padding = false
+              definition[:lines].each do |line|
+                out << " " * part[:definition_pad] if needs_padding
+                out << "  * #{line}\n"
+                needs_padding = true
+              end
+            end
+            out << "\n"
           end
           out << "\n"
           out << "-" * columns.to_i
@@ -64,17 +77,25 @@ module SeznamSlovnik
           puts(color ? out : out.uncolorize)
         end
 
-        private def clean_quick_meaning(meaning)
-          meaning
-            .children
-            .map { |node| node.name == 'br' ? ', ' : node.text }
-            .join
-            .strip
-            .gsub(/\s+/, " ")
-            .gsub(/\s,/, ",")
-            .split(ABBREVIATION)
-            .map { |part| part.match?(ABBREVIATION) ? part.colorize(mode: :italic) : part.colorize(color: :light_blue, mode: :bold) }
-            .join
+        private def build_part_of_speech(part)
+          pos = {}
+          pos[:name] = part.at_css('.Box-header-title').text
+          pos[:definitions] = part.css('li').map(&method(:build_definition))
+          pos[:definition_pad] = pos[:definitions].length.to_s.length + 2 # " 1)"
+          pos
+        end
+
+        private def build_definition(definition)
+          df = {}
+          df[:lines] = definition.css('.Box-content-line').map(&method(:clean_line))
+          df
+        end
+
+        private def clean_line(line)
+          line.children.map do |part|
+            next '->' if part['class'].to_s == "Box-content-pointer"
+            part.text
+          end.map(&:strip).reject(&:empty?).join(' ')
         end
       end
 
